@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+  <meta charset="UTF-8" />
+  <title>גישה למסמכים לפי פרשה</title>
+</head>
+<body dir="rtl">
+  <h2>כניסה למצגת לפי סיסמה ופרשה</h2>
+  <input type="password" id="passwordInput" placeholder="הכנס סיסמה">
+  <br><br>
+  <input type="text" id="parashaInput" placeholder="הכנס שם פרשה">
+  <br><br>
+  <button onclick="checkAccess()">הצג מסמכים</button>
+  <br><br>
+  <div id="result"></div>
+
+  <script>
+    const apiKey = "AIzaSyClmkLxcxXdKkrmGVY2fjTsVgf31RcMS_4";
+    const sheetId = "1YWCM1uctEsK-504WkMSdsBm5y56GBwRB3Hy_r1OYXuI";
+
+    async function checkAccess() {
+      const enteredPassword = document.getElementById("passwordInput").value;
+      const enteredParasha = document.getElementById("parashaInput").value.trim();
+      const resultDiv = document.getElementById("result");
+      resultDiv.innerHTML = "";
+
+      try {
+        // שלב 1: טען את הסיסמה מ-A2
+        const passwordRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/גיליון1!A2?key=${apiKey}`);
+        const passwordData = await passwordRes.json();
+        const realPassword = passwordData.values[0][0];
+
+        // בדוק את הסיסמה
+        if (enteredPassword !== realPassword) {
+          resultDiv.innerHTML = "<p style='color:red;'>סיסמה שגויה</p>";
+          return;
+        }
+
+        // שלב 2: טען את כל השורות עם הנתונים
+        const dataRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/גיליון1!A:D?key=${apiKey}`);
+        const data = await dataRes.json();
+
+        if (!data.values || data.values.length === 0) {
+          resultDiv.innerHTML = "<p style='color:red;'>לא נמצאו נתונים</p>";
+          return;
+        }
+
+        const rows = data.values.slice(1); // דלג על שורת הכותרת
+        const matchingRows = rows.filter(row => row[1] && row[1].trim() === enteredParasha);
+
+        if (matchingRows.length === 0) {
+          resultDiv.innerHTML = "<p>לא נמצאו מסמכים לפרשה הזו.</p>";
+          return;
+        }
+
+        // הצג את המסמכים
+        matchingRows.forEach(row => {
+          const title = row[2] || "מסמך ללא שם";
+          const link = row[3] || "#";
+
+          // הפוך את הקישור ל-preview אם זה קישור של Google Drive
+          let previewLink = link;
+          const match = link.match(/\/d\/([a-zA-Z0-9_-]+)\//);
+          if (match) {
+            const fileId = match[1];
+            previewLink = `https://drive.google.com/file/d/${fileId}/preview`;
+          }
+
+          const iframe = `<iframe src="${previewLink}" width="100%" height="500px" style="margin-top: 10px;"></iframe>`;
+          resultDiv.innerHTML += `<h3>${title}</h3>${iframe}<hr>`;
+        });
+
+      } catch (error) {
+        console.error("שגיאה:", error);
+        resultDiv.innerHTML = "<p style='color:red;'>אירעה שגיאה בעת הטעינה</p>";
+      }
+    }
+  </script>
+</body>
+</html>
